@@ -14,3 +14,4 @@
 /data
 #ignore log files
 *.html
+build

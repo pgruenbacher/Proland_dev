@@ -42,9 +42,9 @@
 #include "proland/preprocess/trees/PreprocessTree.h"
 
 #include "tiffio.h"
-
+#include <iostream>
 #include "ork/render/FrameBuffer.h"
-#include "ork/ui/GlutWindow.h"
+#include "ork/ui/GlfwWindow.h"
 
 namespace proland
 {
@@ -59,7 +59,7 @@ uniform mat4 worldToScreen;\n\
 \n\
 #ifdef _VERTEX_\n\
 layout(location=0) in vec3 p;\n\
-layout(location=1) in vec2 uv;\n\
+layout(location=2) in vec2 uv;\n\
 out vec3 fp;\n\
 out vec2 fuv;\n\
 \n\
@@ -92,7 +92,7 @@ TreeMesh::TreeMesh(ptr< Mesh<Vertex, unsigned int> > mesh, ptr<Texture2D> textur
 {
 }
 
-class PreprocessTree : public GlutWindow
+class PreprocessTree : public GlfwWindow
 {
 public:
     vector<TreeMesh> tree;
@@ -103,7 +103,7 @@ public:
     ptr<Program> p;
 
     PreprocessTree(loadTreeMeshFunction loadTree, int n, int w, const char* output) :
-        GlutWindow(Window::Parameters().size(w, w).depth(true).alpha(true)),
+        GlfwWindow(Window::Parameters().size(w, w).depth(true).alpha(true)),
         n(n), w(w), output(output)
     {
         loadTree(tree);
@@ -117,6 +117,9 @@ public:
     void redisplay(double t, double dt)
     {
         printf("COMPUTING VIEWS...\n");
+
+        GlfwWindow::redisplay(t, dt);
+
         ptr<FrameBuffer> fb = FrameBuffer::getDefault();
         fb->setPolygonMode(FILL, FILL);
         fb->setMultisample(true);
@@ -131,21 +134,22 @@ public:
         const float zmax = 1;
         const float zmin = -1;
 
-        FILE *f;
+        FILE *f = nullptr;
         char name[256];
         sprintf(name, "%s/views.xml", output);
         fopen(&f, name, "w");
+        assert(f = nullptr);
+        fprintf(f, "test");
 
         for (int i = -n; i <= n; ++i) {
             for (int j = -n + abs(i); j <= n - abs(i); ++j) {
 
-                printf("VIEW %d of %d\n", current, total);
+                printf("VIEW %d of %d. (%d, %d) \n", current, total, i, j);
 
                 float x = (i + j) / float(n);
                 float y = (j - i) / float(n);
                 float angle = 90.0 - std::max(fabs(x),fabs(y)) * 90.0;
                 float alpha = x == 0.0 && y == 0.0 ? 0.0 : atan2(y, x) / M_PI * 180.0;
-
                 mat4f cameraToWorld = mat4f::rotatex(90) * mat4f::rotatex(-angle);
                 mat4f worldToCamera = cameraToWorld.inverse();
 
@@ -164,17 +168,16 @@ public:
 
                 p->getUniformMatrix4f("worldToScreen")->setMatrix(w2s);
                 p->getUniform3f("dir")->set(dir);
-
                 fb->clear(true, false, true);
 
                 fb->setColorMask(true, false, true, true);
                 vector<TreeMesh>::iterator k = tree.begin();
                 while (k != tree.end()) {
                     p->getUniformSampler("colorSampler")->set(k->texture);
+                    std::cout << "DRAW Mesh " << std::endl;
                     fb->draw(p, *(k->mesh));
                     k++;
                 }
-
                 fb->setColorMask(false, true, false, false);
                 fb->setDepthTest(true, GREATER);
                 fb->setClearDepth(0.0);
@@ -182,10 +185,10 @@ public:
                 k = tree.begin();
                 while (k != tree.end()) {
                     p->getUniformSampler("colorSampler")->set(k->texture);
+                    std::cout << "DRAW Mesh " << std::endl;
                     fb->draw(p, *(k->mesh));
                     k++;
                 }
-
                 fb->setClearDepth(1.0);
                 fb->setDepthTest(true, LESS);
                 fb->setColorMask(true, true, true, true);
@@ -258,12 +261,13 @@ public:
                 }
             }
         }
-
         vector<TreeMesh>::const_iterator ti = tree.begin();
         while (ti != tree.end()) {
             ptr< Mesh<TreeMesh::Vertex, unsigned int> > m = ti->mesh;
             ti++;
-
+            assert(m->getVertexCount() > 0);
+            // std::cout << " m? " << m->getIndiceCount() << std::endl;
+            std::cout << " m? " << m->getVertexCount() << std::endl;
             for (int in = 0; in < m->getIndiceCount(); in += 3) {
                 int a = m->getIndice(in);
                 int b = m->getIndice(in+1);
@@ -271,6 +275,9 @@ public:
                 float x1 = m->getVertex(a).pos.x, y1 = m->getVertex(a).pos.y, z1 = m->getVertex(a).pos.z;
                 float x2 = m->getVertex(b).pos.x, y2 = m->getVertex(b).pos.y, z2 = m->getVertex(b).pos.z;
                 float x3 = m->getVertex(c).pos.x, y3 = m->getVertex(c).pos.y, z3 = m->getVertex(c).pos.z;
+                std::cout << "A " << x1 << " " << y1 << " " << z1 << std::endl;
+                std::cout << "B " << x2 << " " << y2 << " " << z2 << std::endl;
+                std::cout << "C " << x3 << " " << y3 << " " << z3 << std::endl;
                 x1 = (x1 + 1.0) / 2.0;
                 x2 = (x2 + 1.0) / 2.0;
                 x3 = (x3 + 1.0) / 2.0;
